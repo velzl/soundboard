@@ -58,7 +58,7 @@ This workspace already includes a local Node 20 toolchain under `.tools/`, but s
 If needed:
 
 ```powershell
-cd "C:\Users\Belial\Documents\New project"
+cd path\to\soundboard
 $nodeDir = (Resolve-Path '.\.tools\node-v20.19.6-win-x64').Path
 $env:PATH = "$nodeDir;$env:PATH"
 & '.\.tools\node-v20.19.6-win-x64\npm.cmd' install
@@ -92,7 +92,7 @@ Apply the SQL from:
 ### 4. Start the app
 
 ```powershell
-cd "C:\Users\Belial\Documents\New project"
+cd path\to\soundboard
 $nodeDir = (Resolve-Path '.\.tools\node-v20.19.6-win-x64').Path
 $env:PATH = "$nodeDir;$env:PATH"
 & '.\.tools\node-v20.19.6-win-x64\npm.cmd' run dev
