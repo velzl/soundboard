@@ -1,82 +1,84 @@
 # Soundboard
 
-Soundboard is a responsive social music-tracking web app built around Spotify login, music identity, public profiles, leaderboards, and taste comparison.
+Soundboard is a social music identity app built around Spotify. It turns listening habits into public profiles, compatibility scores, follow relationships, notifications, and competitive leaderboards.
 
-## Open-source notes
+Instead of treating music data like a private analytics dashboard, Soundboard treats it like something social: a way to compare taste, discover people with similar listening habits, and build a profile that actually feels alive.
 
-- Local secrets belong in `.env.local` and should never be committed.
-- Use `.env.example` as the shareable template for setup.
-- If any credential was ever exposed outside your machine, rotate it before publishing.
-- Spotify development-mode apps are limited to allowlisted users, so public visitors may be able to browse the app but not authenticate unless they are registered testers.
+## What it does
 
-## Current milestone
+- Spotify sign-in with server-side token handling
+- public music profiles with usernames, bios, and synced listening snapshots
+- leaderboard scoring based on listening-profile breadth and activity
+- profile comparison using artist and genre overlap
+- follow system and following-only leaderboard
+- in-app notifications for new follows
+- search and discover flow for public profiles
+- weekly recap logic based on synced listening history
 
-This repository currently contains the first implementation scaffold:
+## Why this exists
 
-- Next.js App Router project structure
-- design system and shared layout
-- MVP route skeletons
-- typed domain models
-- starter scoring utilities
-- mock data for rapid UI iteration
-- real Spotify auth code exchange
-- Supabase-backed private session and token persistence when configured
-- Supabase-backed profile persistence and server actions for onboarding/settings
-- Spotify top artists, tracks, and derived genres can now sync into persisted music snapshots
-- public leaderboard and profile pages now prefer persisted Supabase reads when data exists
-- persisted follow relationships now power follow/unfollow actions and the following page
-- comparison now uses persisted artist and genre overlap when both profiles have synced stats
-- dashboard suggestions now prefer persisted compatibility matches and exclude users you already follow
-- following page now includes a real follow-circle leaderboard built from persisted scores
-- signed-in dashboard and profile flows now prefer honest empty states over seeded personal demo data
-- compare now requires a real signed-in viewer context, and the landing discovery preview now prefers real public profiles
-- following no longer falls back to seeded match scores, and sync/setup messaging is clearer across social surfaces
-- anonymous dashboard access is now a clearly gated public preview, and the main shell has a stronger visual polish pass
-- settings now shows live integration readiness, and leaderboard/profile pages have a more competition-focused presentation
-- a dedicated discover page, notification inbox, live username normalization preview, and stronger open-source-safe UI messaging
-- stricter browser security defaults and cleaner user-facing error handling
-- server-side in-memory fallback only when Supabase is not configured yet
-- successful `npm run lint`
-- successful `npm run build`
+Most music stat tools are interesting for a minute and then forgotten.
 
-## Planned stack
+Soundboard is designed around a different loop:
+
+1. connect Spotify
+2. build a music identity
+3. compare with other listeners
+4. follow people with interesting taste
+5. come back for rank changes, recap, and social activity
+
+## Current status
+
+This repository contains a working MVP-oriented build with:
+
+- Next.js App Router
+- Supabase-backed persistence for auth-linked app data
+- Spotify OAuth and top-item sync
+- public profile, leaderboard, compare, discover, and notifications flows
+- stronger username sanitization and reserved-handle protection
+- browser security headers and safer user-facing error handling
+
+The app is functional, but still clearly in MVP territory.
+
+## Stack
 
 - Next.js
+- TypeScript
 - Supabase
 - Spotify Web API
-- Vercel
 
-## Local setup target
+## Local setup
 
-According to the current Next.js installation docs, App Router projects require Node.js 20.9 or newer and can be created with `create-next-app@latest`.
+### 1. Install dependencies
 
-This workspace now includes a local Node 20 toolchain under `.tools/` so the app can be installed and verified without relying on a system-wide Node install.
+This workspace already includes a local Node 20 toolchain under `.tools/`, but standard local Node 20+ works too.
 
-The next steps are:
+If needed:
 
-1. Create the Supabase project and fill in `.env.local`. For local Spotify auth, use `127.0.0.1` instead of `localhost` in the redirect URI.
-2. Run the SQL in:
-   - `supabase/migrations/20260414_create_private_auth_tables.sql`
-   - `supabase/migrations/20260414_create_profiles_table.sql`
-   - `supabase/migrations/20260414_create_user_music_stats_table.sql`
-   - `supabase/migrations/20260414_create_follows_table.sql`
-   - `supabase/migrations/20260414_create_music_sync_history_table.sql`
-   - `supabase/migrations/20260414_create_notifications_table.sql`
-3. Add richer social discovery and leaderboard filtering on top of persisted follows.
-4. Replace more seeded profile/demo dependencies as the persisted user base grows.
+```powershell
+cd "C:\Users\Belial\Documents\New project"
+$nodeDir = (Resolve-Path '.\.tools\node-v20.19.6-win-x64').Path
+$env:PATH = "$nodeDir;$env:PATH"
+& '.\.tools\node-v20.19.6-win-x64\npm.cmd' install
+```
 
-## Environment variables
+### 2. Configure environment variables
 
-Copy `.env.example` to `.env.local` and fill in the values when Spotify and Supabase are ready.
+Copy `.env.example` to `.env.local` and fill in:
 
-## Supabase setup for the current auth pass
-
-The current auth layer expects:
-
+- `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
+- `SPOTIFY_CLIENT_ID`
+- `SPOTIFY_CLIENT_SECRET`
+- `SPOTIFY_REDIRECT_URI`
 
-When those values are present, Spotify sessions and tokens are stored in Supabase using the private tables defined in:
+For local Spotify auth, use `127.0.0.1` instead of `localhost` in the redirect URI.
+
+### 3. Run the Supabase migrations
+
+Apply the SQL from:
 
 - `supabase/migrations/20260414_create_private_auth_tables.sql`
 - `supabase/migrations/20260414_create_profiles_table.sql`
@@ -85,4 +87,48 @@ When those values are present, Spotify sessions and tokens are stored in Supabas
 - `supabase/migrations/20260414_create_music_sync_history_table.sql`
 - `supabase/migrations/20260414_create_notifications_table.sql`
 
-If Supabase is not configured yet, the app falls back to an in-memory session store so local development can still work, but that fallback should be treated as temporary only.
+### 4. Start the app
+
+```powershell
+cd "C:\Users\Belial\Documents\New project"
+$nodeDir = (Resolve-Path '.\.tools\node-v20.19.6-win-x64').Path
+$env:PATH = "$nodeDir;$env:PATH"
+& '.\.tools\node-v20.19.6-win-x64\npm.cmd' run dev
+```
+
+Then open:
+
+- [http://127.0.0.1:3000](http://127.0.0.1:3000)
+
+## Open-source and security notes
+
+- real secrets belong in `.env.local`
+- `.env.local` is intentionally ignored and should never be committed
+- use `.env.example` as the shareable setup template
+- if any credential was ever exposed outside your machine, rotate it before reuse
+
+See [`SECURITY.md`](./SECURITY.md) for the security disclosure note.
+
+## Spotify limitation
+
+Spotify development-mode apps are limited to allowlisted users. That means public visitors may be able to browse parts of the app, but authentication and synced-data flows are restricted unless the account has been added in the Spotify Developer Dashboard.
+
+## GitHub presentation
+
+For a polished public repo presentation, use the guidance in:
+
+- [`docs/github-showcase.md`](./docs/github-showcase.md)
+
+That file includes:
+
+- a suggested GitHub repo description
+- suggested repo topics
+- screenshot checklist
+- demo GIF / video shot list
+
+## Verification
+
+Current local verification passes:
+
+- `npm run lint`
+- `npm run build`
