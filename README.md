@@ -1,5 +1,7 @@
 # Soundboard
 
+> Turn Spotify listening into a social identity.
+
 Soundboard is a social music identity app built around Spotify. It turns listening habits into public profiles, compatibility scores, follow relationships, notifications, and competitive leaderboards.
 
 Instead of treating music data like a private analytics dashboard, Soundboard treats it like something social: a way to compare taste, discover people with similar listening habits, and build a profile that actually feels alive.
@@ -121,9 +123,10 @@ For a polished public repo presentation, use the guidance in:
 
 That file includes:
 
+- a chosen repo tagline
 - a suggested GitHub repo description
 - suggested repo topics
-- screenshot checklist
+- a first screenshot plan tied to real app routes
 - demo GIF / video shot list
 
 ## Verification
