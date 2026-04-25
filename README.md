@@ -120,6 +120,7 @@ Spotify development-mode apps are limited to allowlisted users. That means publi
 For a polished public repo presentation, use the guidance in:
 
 - [`docs/github-showcase.md`](./docs/github-showcase.md)
+- [`screenshots/README.md`](./screenshots/README.md)
 
 That file includes:
 
