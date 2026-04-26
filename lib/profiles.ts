@@ -315,3 +315,41 @@ export async function getPublicProfilesBySpotifyUserIds(spotifyUserIds: string[]
 
   return profiles;
 }
+
+export async function getRecentPublicProfiles(limit = 12) {
+  if (!supabaseServerConfigIsReady()) {
+    return [...profileStore.values()]
+      .filter((profile) => profile.onboardingComplete)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .slice(0, limit);
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from(PROFILE_TABLE)
+    .select(
+      "spotify_user_id, username, display_name, bio, avatar_url, onboarding_complete, created_at, updated_at"
+    )
+    .eq("onboarding_complete", true)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to load recent public profiles: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) =>
+    mapRowToProfile(
+      row as {
+        spotify_user_id: string;
+        username: string;
+        display_name: string;
+        bio: string;
+        avatar_url: string | null;
+        onboarding_complete: boolean;
+        created_at: string;
+        updated_at: string;
+      }
+    )
+  );
+}

@@ -17,6 +17,13 @@
 - comparison now uses persisted artists and genres when both profiles have synced stats
 - dashboard suggestions now use persisted compatibility matches when possible
 - following page now includes a real personal leaderboard built from follow edges and persisted scores
+- a new activity route now surfaces system-generated public and follow-circle activity
+- the activity route now supports safer public-vs-circle filtering without introducing open posting
+- the activity route now supports event-type filtering for follows, syncs, and new profiles
+- notifications now support follow-back flows and mutual-follow signals
+- profile and following views now expose mutual-follow state instead of feeling one-directional only
+- discover results now show social-proof labels and system-generated profile badges
+- dashboard suggestions now blend taste overlap with circle-graph signals instead of using taste alone
 - signed-in dashboard/profile views now stop showing seeded personal placeholders when real sync/setup is still missing
 - compare and landing-page discovery now lean more heavily on real public/persisted data instead of demo stand-ins
 - following and settings now use clearer sync/setup language, with no seeded comparison fallback left in the social circle view
@@ -29,15 +36,15 @@
 
 ## What is intentionally mocked
 
-- dashboard discovery suggestions
 - anonymous demo profile data
 - cross-user seeded leaderboard fallback when no persisted profiles exist
 - comparison for profiles that still have no synced music snapshot
+- follow activity in memory-only fallback mode before Supabase is configured
 
 ## Exact next step
 
-Build discovery suggestions from persisted stats and compatibility in this order:
+Keep pushing the social layer without opening moderation-heavy surfaces:
 
-1. replace seeded dashboard suggestions with persisted-user matches
-2. remove more seeded profile/demo dependencies as persisted data grows
-3. add richer filtering or time-window controls once the persisted user base grows
+1. add richer activity filtering or follow-circle segmentation
+2. consider lightweight profile badges or pinned identity markers
+3. keep avoiding comments, DMs, and arbitrary posting until moderation/security goals are better funded

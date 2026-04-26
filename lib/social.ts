@@ -1,5 +1,6 @@
 import type { AppSession } from "@/lib/session";
 import { createSupabaseAdminClient, supabaseServerConfigIsReady } from "@/lib/supabase/admin";
+import type { SocialRelationship } from "@/types";
 
 const FOLLOWS_TABLE = "follows";
 
@@ -8,16 +9,27 @@ type FollowEdge = {
   followedSpotifyUserId: string;
 };
 
+export type FollowEvent = FollowEdge & {
+  createdAt: string;
+};
+
 type FollowStore = Set<string>;
+type FollowEventStore = FollowEvent[];
 
 declare global {
   var __soundboardFollowStore: FollowStore | undefined;
+  var __soundboardFollowEventStore: FollowEventStore | undefined;
 }
 
 const followStore = globalThis.__soundboardFollowStore ?? new Set<string>();
+const followEventStore = globalThis.__soundboardFollowEventStore ?? [];
 
 if (!globalThis.__soundboardFollowStore) {
   globalThis.__soundboardFollowStore = followStore;
+}
+
+if (!globalThis.__soundboardFollowEventStore) {
+  globalThis.__soundboardFollowEventStore = followEventStore;
 }
 
 function followKey(followerSpotifyUserId: string, followedSpotifyUserId: string) {
@@ -31,13 +43,39 @@ function normalizeEdges(rows: Array<{ follower_spotify_user_id: string; followed
   }));
 }
 
+function normalizeEvents(
+  rows: Array<{
+    follower_spotify_user_id: string;
+    followed_spotify_user_id: string;
+    created_at: string;
+  }>
+) {
+  return rows.map((row) => ({
+    followerSpotifyUserId: row.follower_spotify_user_id,
+    followedSpotifyUserId: row.followed_spotify_user_id,
+    createdAt: row.created_at
+  }));
+}
+
 export async function followUser(session: AppSession, followedSpotifyUserId: string) {
   if (session.spotifyUserId === followedSpotifyUserId) {
     throw new Error("You cannot follow yourself.");
   }
 
   if (!supabaseServerConfigIsReady()) {
+    const alreadyFollowing = followStore.has(
+      followKey(session.spotifyUserId, followedSpotifyUserId)
+    );
     followStore.add(followKey(session.spotifyUserId, followedSpotifyUserId));
+
+    if (!alreadyFollowing) {
+      followEventStore.unshift({
+        followerSpotifyUserId: session.spotifyUserId,
+        followedSpotifyUserId,
+        createdAt: new Date().toISOString()
+      });
+    }
+
     return;
   }
 
@@ -228,3 +266,146 @@ export async function getFollowEdgesForUserIds(spotifyUserIds: string[]) {
   );
 }
 
+export async function getFollowRelationshipMapForViewer(
+  viewerSpotifyUserId: string,
+  targetSpotifyUserIds: string[]
+) {
+  const targetIds = [...new Set(targetSpotifyUserIds.filter(Boolean))].filter(
+    (targetSpotifyUserId) => targetSpotifyUserId !== viewerSpotifyUserId
+  );
+  const relationshipMap = new Map<string, SocialRelationship>();
+
+  targetIds.forEach((targetSpotifyUserId) => {
+    relationshipMap.set(targetSpotifyUserId, {
+      isFollowing: false,
+      followsViewer: false,
+      isMutual: false
+    });
+  });
+
+  if (!targetIds.length) {
+    return relationshipMap;
+  }
+
+  if (!supabaseServerConfigIsReady()) {
+    targetIds.forEach((targetSpotifyUserId) => {
+      const isFollowing = followStore.has(
+        followKey(viewerSpotifyUserId, targetSpotifyUserId)
+      );
+      const followsViewer = followStore.has(
+        followKey(targetSpotifyUserId, viewerSpotifyUserId)
+      );
+
+      relationshipMap.set(targetSpotifyUserId, {
+        isFollowing,
+        followsViewer,
+        isMutual: isFollowing && followsViewer
+      });
+    });
+
+    return relationshipMap;
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const targetList = targetIds.join(",");
+  const { data, error } = await supabase
+    .from(FOLLOWS_TABLE)
+    .select("follower_spotify_user_id, followed_spotify_user_id")
+    .or(
+      `and(follower_spotify_user_id.eq.${viewerSpotifyUserId},followed_spotify_user_id.in.(${targetList})),and(followed_spotify_user_id.eq.${viewerSpotifyUserId},follower_spotify_user_id.in.(${targetList}))`
+    );
+
+  if (error) {
+    throw new Error(`Failed to load follow relationship state: ${error.message}`);
+  }
+
+  normalizeEdges(
+    (data ?? []) as Array<{
+      follower_spotify_user_id: string;
+      followed_spotify_user_id: string;
+    }>
+  ).forEach((edge) => {
+    if (edge.followerSpotifyUserId === viewerSpotifyUserId) {
+      const current = relationshipMap.get(edge.followedSpotifyUserId);
+
+      if (current) {
+        relationshipMap.set(edge.followedSpotifyUserId, {
+          ...current,
+          isFollowing: true,
+          isMutual: true && current.followsViewer
+        });
+      }
+    }
+
+    if (edge.followedSpotifyUserId === viewerSpotifyUserId) {
+      const current = relationshipMap.get(edge.followerSpotifyUserId);
+
+      if (current) {
+        relationshipMap.set(edge.followerSpotifyUserId, {
+          ...current,
+          followsViewer: true,
+          isMutual: true && current.isFollowing
+        });
+      }
+    }
+  });
+
+  relationshipMap.forEach((relationship, spotifyUserId) => {
+    relationshipMap.set(spotifyUserId, {
+      ...relationship,
+      isMutual: relationship.isFollowing && relationship.followsViewer
+    });
+  });
+
+  return relationshipMap;
+}
+
+export async function getRecentFollowEvents(limit = 12, participantSpotifyUserIds?: string[]) {
+  const participantIds = participantSpotifyUserIds
+    ? [...new Set(participantSpotifyUserIds.filter(Boolean))]
+    : [];
+
+  if (!supabaseServerConfigIsReady()) {
+    const relevantEvents = followEventStore.filter((event) => {
+      if (!participantIds.length) {
+        return true;
+      }
+
+      return (
+        participantIds.includes(event.followerSpotifyUserId) ||
+        participantIds.includes(event.followedSpotifyUserId)
+      );
+    });
+
+    return relevantEvents
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .slice(0, limit);
+  }
+
+  const supabase = createSupabaseAdminClient();
+  let query = supabase
+    .from(FOLLOWS_TABLE)
+    .select("follower_spotify_user_id, followed_spotify_user_id, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (participantIds.length) {
+    query = query.or(
+      `follower_spotify_user_id.in.(${participantIds.join(",")}),followed_spotify_user_id.in.(${participantIds.join(",")})`
+    );
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Failed to load follow activity: ${error.message}`);
+  }
+
+  return normalizeEvents(
+    (data ?? []) as Array<{
+      follower_spotify_user_id: string;
+      followed_spotify_user_id: string;
+      created_at: string;
+    }>
+  );
+}

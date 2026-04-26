@@ -7,9 +7,14 @@ import {
   getStatsByUserId,
   getSuggestedProfiles as getMockSuggestedProfiles
 } from "@/lib/mock-data";
+import { buildProfileBadges } from "@/lib/profile-badges";
 import { getLeadGenre, getStoredMusicStatsBySpotifyUserId, getStoredMusicStatsMapBySpotifyUserIds } from "@/lib/music-stats";
 import { buildAvatarSeed, getPublicProfileBySpotifyUserId, getPublicProfileByUsername } from "@/lib/profiles";
-import { getFollowCountsForUsers, getFollowingSpotifyUserIdsForSession } from "@/lib/social";
+import {
+  getFollowCountsForUsers,
+  getFollowEdgesForUserIds,
+  getFollowingSpotifyUserIdsForSession
+} from "@/lib/social";
 import { createSupabaseAdminClient, supabaseServerConfigIsReady } from "@/lib/supabase/admin";
 import { calculateMusicActivityScore } from "@/lib/scoring";
 import type { LeaderboardEntry, MusicStats, PersistedProfile, Profile } from "@/types";
@@ -36,6 +41,8 @@ type PublicSnapshot = {
 type SuggestedProfileMatch = {
   profile: Profile;
   comparison: ReturnType<typeof buildComparisonBreakdown>;
+  socialLabel?: string;
+  badges: string[];
   source: "supabase" | "mock";
 };
 
@@ -72,6 +79,42 @@ function rowToPersistedProfile(row: ProfileRow): PersistedProfile {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function countSetOverlap(left: Set<string>, right: Set<string>) {
+  let count = 0;
+
+  left.forEach((value) => {
+    if (right.has(value)) {
+      count += 1;
+    }
+  });
+
+  return count;
+}
+
+function buildSuggestionReason(input: {
+  followsViewer: boolean;
+  sharedFollowingCount: number;
+  followedByCircleCount: number;
+}) {
+  if (input.followsViewer && input.sharedFollowingCount > 0) {
+    return `Follows you + shares ${input.sharedFollowingCount} of your follows`;
+  }
+
+  if (input.followsViewer) {
+    return "Already follows you";
+  }
+
+  if (input.sharedFollowingCount > 0) {
+    return `Shares ${input.sharedFollowingCount} of your follows`;
+  }
+
+  if (input.followedByCircleCount > 0) {
+    return `Followed by ${input.followedByCircleCount} people in your circle`;
+  }
+
+  return "Taste-first suggestion";
 }
 
 const getPersistedProfiles = cache(async () => {
@@ -279,10 +322,18 @@ export async function getSuggestedProfileMatchesForSession(
   limit = 3
 ): Promise<SuggestedProfileMatch[]> {
   if (!session) {
-    return getMockSuggestedProfiles().slice(0, limit).map((entry) => ({
-      ...entry,
-      source: "mock" as const
-    }));
+    return getMockSuggestedProfiles()
+      .slice(0, limit)
+      .map((entry) => {
+        const stats = getStatsByUserId(entry.profile.id);
+        const score = calculateMusicActivityScore(stats);
+
+        return {
+          ...entry,
+          badges: buildProfileBadges(entry.profile, stats, score),
+          source: "mock" as const
+        };
+      });
   }
 
   if (!viewerStats || !supabaseServerConfigIsReady()) {
@@ -301,10 +352,29 @@ export async function getSuggestedProfileMatchesForSession(
   }
 
   const spotifyUserIds = candidateProfiles.map((profile) => profile.spotifyUserId);
-  const [counts, statsMap] = await Promise.all([
+  const graphParticipantIds = [
+    session.spotifyUserId,
+    ...followedSpotifyUserIds,
+    ...spotifyUserIds
+  ];
+  const [counts, statsMap, followEdges] = await Promise.all([
     getFollowCountsForUsers(spotifyUserIds),
-    getStoredMusicStatsMapBySpotifyUserIds(spotifyUserIds)
+    getStoredMusicStatsMapBySpotifyUserIds(spotifyUserIds),
+    getFollowEdgesForUserIds(graphParticipantIds)
   ]);
+  const viewerFollowingSet = new Set(followedSpotifyUserIds);
+  const outgoingMap = new Map<string, Set<string>>();
+  const incomingMap = new Map<string, Set<string>>();
+
+  followEdges.forEach((edge) => {
+    const outgoing = outgoingMap.get(edge.followerSpotifyUserId) ?? new Set<string>();
+    outgoing.add(edge.followedSpotifyUserId);
+    outgoingMap.set(edge.followerSpotifyUserId, outgoing);
+
+    const incoming = incomingMap.get(edge.followedSpotifyUserId) ?? new Set<string>();
+    incoming.add(edge.followerSpotifyUserId);
+    incomingMap.set(edge.followedSpotifyUserId, incoming);
+  });
 
   const suggestions = candidateProfiles.map((profile) => {
     const persistedStats = statsMap.get(profile.spotifyUserId);
@@ -313,9 +383,40 @@ export async function getSuggestedProfileMatchesForSession(
       return null;
     }
 
+    const shapedProfile = toProfileShape(profile, counts.get(profile.spotifyUserId));
+    const comparison = buildComparisonBreakdown(viewerStats, persistedStats.stats);
+    const candidateFollowingSet = outgoingMap.get(profile.spotifyUserId) ?? new Set<string>();
+    const candidateFollowersSet = incomingMap.get(profile.spotifyUserId) ?? new Set<string>();
+    const followsViewer = candidateFollowingSet.has(session.spotifyUserId);
+    const sharedFollowingCount = countSetOverlap(
+      candidateFollowingSet,
+      viewerFollowingSet
+    );
+    const followedByCircleCount = countSetOverlap(
+      candidateFollowersSet,
+      viewerFollowingSet
+    );
+    const graphScore =
+      sharedFollowingCount * 12 +
+      followedByCircleCount * 10 +
+      (followsViewer ? 24 : 0);
+    const rankingScore =
+      comparison.score * 3 + graphScore + Math.min(shapedProfile.followers, 12);
+
     return {
-      profile: toProfileShape(profile, counts.get(profile.spotifyUserId)),
-      comparison: buildComparisonBreakdown(viewerStats, persistedStats.stats),
+      profile: shapedProfile,
+      comparison,
+      socialLabel: buildSuggestionReason({
+        followsViewer,
+        sharedFollowingCount,
+        followedByCircleCount
+      }),
+      badges: buildProfileBadges(
+        shapedProfile,
+        persistedStats.stats,
+        persistedStats.score
+      ),
+      rankingScore,
       source: "supabase" as const
     };
   });
@@ -323,12 +424,19 @@ export async function getSuggestedProfileMatchesForSession(
   const realSuggestions = suggestions
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
     .sort((left, right) => {
-      if (right.comparison.score !== left.comparison.score) {
-        return right.comparison.score - left.comparison.score;
+      if (right.rankingScore !== left.rankingScore) {
+        return right.rankingScore - left.rankingScore;
       }
 
       return right.profile.followers - left.profile.followers;
-    });
+    })
+    .map((entry) => ({
+      profile: entry.profile,
+      comparison: entry.comparison,
+      socialLabel: entry.socialLabel,
+      badges: entry.badges,
+      source: entry.source
+    }));
 
   if (!realSuggestions.length) {
     return [];

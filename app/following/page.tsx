@@ -11,7 +11,10 @@ import {
 } from "@/lib/public-data";
 import { getViewerProfile } from "@/lib/profiles";
 import { getCurrentSession } from "@/lib/session";
-import { getFollowingSpotifyUserIdsForSession } from "@/lib/social";
+import {
+  getFollowRelationshipMapForViewer,
+  getFollowingSpotifyUserIdsForSession
+} from "@/lib/social";
 
 export default async function FollowingPage() {
   const session = await getCurrentSession();
@@ -24,6 +27,10 @@ export default async function FollowingPage() {
   const needsViewerSync = Boolean(session && viewerProfile?.onboardingComplete && !viewerStats);
   const followingLeaderboard = await getFollowingLeaderboardEntriesForSession(session);
   const followingIds = session ? await getFollowingSpotifyUserIdsForSession(session) : [];
+  const relationshipMap =
+    session && followingIds.length
+      ? await getFollowRelationshipMapForViewer(session.spotifyUserId, followingIds)
+      : new Map();
   const followingSnapshots = await Promise.all(
     followingIds.map((spotifyUserId) => getPublicProfileSnapshotBySpotifyUserId(spotifyUserId))
   );
@@ -31,6 +38,9 @@ export default async function FollowingPage() {
     (snapshot): snapshot is NonNullable<typeof snapshot> => Boolean(snapshot)
   );
   const unsyncedFollowCount = following.filter((snapshot) => !snapshot.stats).length;
+  const mutualCount = following.filter((snapshot) =>
+    relationshipMap.get(snapshot.profile.id)?.isMutual
+  ).length;
 
   return (
     <main className="page">
@@ -40,6 +50,11 @@ export default async function FollowingPage() {
         <p className="lede">
           V1 keeps the social layer intentionally light: follow people, compare taste, and use your circle as a more personal leaderboard.
         </p>
+        <div className="pill-row">
+          <span className="pill">{following.length} in your circle</span>
+          <span className="pill">{mutualCount} mutual {mutualCount === 1 ? "follow" : "follows"}</span>
+          <span className="pill pill-accent">Safer system-social design</span>
+        </div>
       </section>
 
       {!session ? (
@@ -104,21 +119,32 @@ export default async function FollowingPage() {
 
         {following.length ? (
           <div className="grid grid-2">
-            {following.map((snapshot) => (
-              <UserCard
-                key={snapshot.profile.id}
-                profile={snapshot.profile}
-                comparison={
-                  viewerStats && snapshot.stats
-                    ? buildComparisonBreakdown(viewerStats, snapshot.stats)
-                    : undefined
-                }
-                actionHref={`/compare/${snapshot.profile.username}`}
-                actionLabel={
-                  viewerStats && snapshot.stats ? "Compare" : "View sync status"
-                }
-              />
-            ))}
+            {following.map((snapshot) => {
+                const relationship = relationshipMap.get(snapshot.profile.id);
+
+                return (
+                  <UserCard
+                    key={snapshot.profile.id}
+                    profile={snapshot.profile}
+                    comparison={
+                      viewerStats && snapshot.stats
+                        ? buildComparisonBreakdown(viewerStats, snapshot.stats)
+                        : undefined
+                    }
+                    actionHref={`/compare/${snapshot.profile.username}`}
+                    actionLabel={
+                      viewerStats && snapshot.stats ? "Compare" : "View sync status"
+                    }
+                    socialLabel={
+                      relationship?.isMutual
+                        ? "Mutual follow"
+                        : relationship?.followsViewer
+                          ? "Follows you"
+                          : "You follow this profile"
+                    }
+                  />
+                );
+              })}
           </div>
         ) : (
           <article className="card stack">

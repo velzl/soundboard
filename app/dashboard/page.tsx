@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import { syncSpotifyMusicFromDashboard } from "@/app/music-actions";
+import { ActivityFeed } from "@/components/activity-feed";
 import { LeaderboardList } from "@/components/leaderboard-list";
 import { SectionHeading } from "@/components/section-heading";
 import { StatCard } from "@/components/stat-card";
 import { UserCard } from "@/components/user-card";
+import { getCircleActivityFeedForSession } from "@/lib/activity-feed";
 import { getResolvedTopGenres, getStoredMusicStatsForSession } from "@/lib/music-stats";
 import { getViewerProfile } from "@/lib/profiles";
 import {
@@ -106,7 +108,7 @@ export default async function DashboardPage({
   const stats = storedMusicStats?.stats ?? null;
   const displayName = (viewerProfile?.displayName ?? session.displayName).split(" ")[0];
   const score = storedMusicStats?.score ?? (stats ? calculateMusicActivityScore(stats) : null);
-  const [viewerSnapshot, rank, suggested, syncHistory] = await Promise.all([
+  const [viewerSnapshot, rank, suggested, syncHistory, circleActivity] = await Promise.all([
     viewerProfile?.onboardingComplete
       ? getPublicProfileSnapshotBySpotifyUserId(session.spotifyUserId)
       : Promise.resolve(null),
@@ -114,7 +116,8 @@ export default async function DashboardPage({
       ? getPublicLeaderboardRank(viewerProfile.username)
       : Promise.resolve(null),
     getSuggestedProfileMatchesForSession(session, storedMusicStats?.stats ?? null),
-    getRecentMusicSyncHistoryForSpotifyUserId(session.spotifyUserId, 2)
+    getRecentMusicSyncHistoryForSpotifyUserId(session.spotifyUserId, 2),
+    getCircleActivityFeedForSession(session, 4)
   ]);
   const followers = viewerSnapshot ? String(viewerSnapshot.profile.followers) : "-";
   const following = viewerSnapshot ? String(viewerSnapshot.profile.following) : "-";
@@ -242,6 +245,30 @@ export default async function DashboardPage({
         </section>
       ) : null}
 
+      <section className="stack">
+        <SectionHeading
+          eyebrow="Social pulse"
+          title="What your listening circle is doing"
+          description="This keeps the app feeling alive through follows, syncs, and new profile claims without opening up an unsafe public posting surface."
+        />
+        <ActivityFeed
+          items={viewerProfile?.onboardingComplete ? circleActivity : []}
+          emptyTitle={
+            viewerProfile?.onboardingComplete
+              ? "Your circle has not moved yet"
+              : "Your circle feed is waiting on profile setup"
+          }
+          emptyNote={
+            viewerProfile?.onboardingComplete
+              ? "Follow a few people or let more synced profiles join your orbit and this area will start feeling more like a live social pulse."
+              : "Complete onboarding first so this feed can anchor itself to your public music identity."
+          }
+        />
+        <Link className="button button-secondary" href="/activity">
+          Open the full activity feed
+        </Link>
+      </section>
+
       <section className="split">
         <div className="stack">
           <SectionHeading
@@ -305,15 +332,17 @@ export default async function DashboardPage({
           <SectionHeading
             eyebrow="Suggested listeners"
             title="People who are close to your lane"
-            description="These matches come from artist and genre overlap."
+            description="These suggestions blend artist and genre overlap with lightweight circle signals like shared follows and follow-back momentum."
           />
 
           {suggested.length ? (
-            suggested.map(({ profile: suggestedProfile, comparison }) => (
+            suggested.map(({ profile: suggestedProfile, comparison, socialLabel, badges }) => (
               <UserCard
                 key={suggestedProfile.id}
                 profile={suggestedProfile}
                 comparison={comparison}
+                socialLabel={socialLabel}
+                badges={badges}
                 actionHref={`/compare/${suggestedProfile.username}`}
               />
             ))

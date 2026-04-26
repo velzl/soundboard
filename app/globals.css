@@ -320,6 +320,18 @@ textarea {
   margin-top: 1.5rem;
 }
 
+.activity-filter-row {
+  align-items: center;
+}
+
+.badge-explainer {
+  gap: 0.3rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .search-form {
   display: flex;
   flex-wrap: wrap;
@@ -575,6 +587,44 @@ textarea {
 .list-grid {
   display: grid;
   gap: 1rem;
+}
+
+.activity-feed {
+  display: grid;
+  gap: 1rem;
+}
+
+.activity-card {
+  gap: 1rem;
+}
+
+.activity-header {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.activity-copy {
+  gap: 0.3rem;
+}
+
+.activity-avatar-stack {
+  position: relative;
+  display: inline-flex;
+  min-width: 4.4rem;
+  align-items: center;
+}
+
+.activity-avatar-secondary {
+  position: absolute;
+  left: 1.85rem;
+  top: 1rem;
+  border: 2px solid rgba(12, 16, 32, 0.9);
+}
+
+.activity-privacy-pill {
+  max-width: min(100%, 38rem);
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .notification-card {

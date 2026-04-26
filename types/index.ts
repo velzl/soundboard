@@ -20,6 +20,12 @@ export type Profile = {
   following: number;
 };
 
+export type SocialRelationship = {
+  isFollowing: boolean;
+  followsViewer: boolean;
+  isMutual: boolean;
+};
+
 export type MusicStats = {
   userId: string;
   topArtists: ArtistSummary[];
@@ -64,6 +70,21 @@ export type AppNotification = {
   actorAvatarSeed: string;
   createdAt: string;
   readAt: string | null;
+};
+
+export type SocialActivityType = "follow" | "sync" | "joined";
+
+export type SocialActivityItem = {
+  id: string;
+  type: SocialActivityType;
+  actorProfile: Profile;
+  targetProfile: Profile | null;
+  createdAt: string;
+  headline: string;
+  detail: string;
+  actionHref: string;
+  actionLabel: string;
+  privacyNote: string;
 };
 
 export type PersistedProfile = {

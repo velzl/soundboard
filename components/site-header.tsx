@@ -12,6 +12,7 @@ export async function SiteHeader() {
   ]);
   const links = [
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/activity", label: "Activity" },
     { href: "/discover", label: "Discover" },
     { href: "/leaderboard", label: "Leaderboard" },
     { href: "/following", label: "Following" },

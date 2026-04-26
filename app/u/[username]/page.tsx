@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 
 import { buildComparisonBreakdown } from "@/lib/compatibility";
 import { FollowToggle } from "@/components/follow-toggle";
+import {
+  buildPinnedIdentityMarkers,
+  buildProfileBadgeDetails,
+  buildProfileBadges
+} from "@/lib/profile-badges";
 import { buildProfileIdentity } from "@/lib/profile-identity";
 import { SectionHeading } from "@/components/section-heading";
 import { StatCard } from "@/components/stat-card";
@@ -10,7 +15,7 @@ import { getLeadGenre, getResolvedTopGenres, getStoredMusicStatsForSession } fro
 import { getPublicProfileSnapshotByUsername } from "@/lib/public-data";
 import { getViewerProfile } from "@/lib/profiles";
 import { getCurrentSession } from "@/lib/session";
-import { isFollowingUser } from "@/lib/social";
+import { getFollowRelationshipMapForViewer } from "@/lib/social";
 import { toUserFacingErrorMessage } from "@/lib/ui-errors";
 
 export default async function ProfilePage({
@@ -43,10 +48,17 @@ export default async function ProfilePage({
     ? viewerStoredStats?.stats ?? null
     : null;
   const canFollow = Boolean(session && snapshot.source === "supabase" && !isOwnProfile);
-  const isFollowing =
+  const relationship =
     canFollow && session
-      ? await isFollowingUser(session, snapshot.profile.id)
-      : false;
+      ? (await getFollowRelationshipMapForViewer(session.spotifyUserId, [snapshot.profile.id])).get(
+          snapshot.profile.id
+        ) ?? {
+          isFollowing: false,
+          followsViewer: false,
+          isMutual: false
+        }
+      : null;
+  const isFollowing = relationship?.isFollowing ?? false;
   const comparison =
     viewerStats && snapshot.stats && !isOwnProfile
       ? buildComparisonBreakdown(viewerStats, snapshot.stats)
@@ -88,6 +100,17 @@ export default async function ProfilePage({
             ? "This profile still needs a Spotify sync before the overlap score can appear."
             : "Comparison is temporarily unavailable for this profile.";
   const identity = buildProfileIdentity(snapshot.profile, snapshot.stats);
+  const profileBadges = buildProfileBadges(snapshot.profile, snapshot.stats, snapshot.score);
+  const profileBadgeDetails = buildProfileBadgeDetails(
+    snapshot.profile,
+    snapshot.stats,
+    snapshot.score
+  );
+  const pinnedMarkers = buildPinnedIdentityMarkers(
+    snapshot.profile,
+    snapshot.stats,
+    snapshot.score
+  );
 
   return (
     <main className="page">
@@ -131,6 +154,13 @@ export default async function ProfilePage({
             <span className="pill">@{snapshot.profile.username}</span>
             <span className="pill">{snapshot.profile.followers} followers</span>
             <span className="pill">{snapshot.profile.following} following</span>
+            {relationship?.isMutual ? (
+              <span className="pill pill-accent">Mutual follow</span>
+            ) : relationship?.followsViewer ? (
+              <span className="pill">Follows you</span>
+            ) : relationship?.isFollowing ? (
+              <span className="pill">You follow this profile</span>
+            ) : null}
             {snapshot.stats ? (
               <span className="pill">
                 Synced {new Date(snapshot.stats.updatedAt).toLocaleDateString()}
@@ -153,6 +183,18 @@ export default async function ProfilePage({
               </span>
             ))}
           </div>
+          {profileBadges.length ? (
+            <div className="stack">
+              <span className="eyebrow">Pinned badges</span>
+              <div className="pill-row">
+                {profileBadges.map((badge) => (
+                  <span className="pill pill-accent" key={badge}>
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </aside>
       </section>
 
@@ -276,6 +318,11 @@ export default async function ProfilePage({
                   username={snapshot.profile.username}
                   redirectPath={`/u/${snapshot.profile.username}`}
                   isFollowing={isFollowing}
+                  followLabel={
+                    relationship?.followsViewer
+                      ? `Follow back @${snapshot.profile.username}`
+                      : undefined
+                  }
                 />
               ) : null}
             </div>
@@ -297,6 +344,37 @@ export default async function ProfilePage({
                     ? "Sync your Spotify data first so this profile can be compared against your real listening history."
                     : "Comparison will appear here once both profiles have synced data."}
               </p>
+            </article>
+          ) : null}
+
+          <article className="card stack">
+            <h3>Pinned identity markers</h3>
+            <p className="note">
+              Lightweight profile markers keep the social read fast without exposing raw private data or requiring free-form public posting.
+            </p>
+            <div className="tag-list">
+              {pinnedMarkers.map((marker) => (
+                <span className="tag" key={marker}>
+                  {marker}
+                </span>
+              ))}
+            </div>
+          </article>
+
+          {profileBadgeDetails.length ? (
+            <article className="card stack">
+              <h3>Why these badges showed up</h3>
+              <p className="note">
+                Badge logic is deterministic. It comes from synced music breadth, follower/following counts, and profile state, not from hidden moderation scores or manual labels.
+              </p>
+              <div className="stack">
+                {profileBadgeDetails.map((badge) => (
+                  <div className="stack badge-explainer" key={badge.label}>
+                    <strong>{badge.label}</strong>
+                    <span className="note">{badge.detail}</span>
+                  </div>
+                ))}
+              </div>
             </article>
           ) : null}
         </div>

@@ -7,13 +7,17 @@ type UserCardProps = {
   comparison?: ComparisonBreakdown;
   actionHref?: string;
   actionLabel?: string;
+  socialLabel?: string;
+  badges?: string[];
 };
 
 export function UserCard({
   profile,
   comparison,
   actionHref,
-  actionLabel = "Compare"
+  actionLabel = "Compare",
+  socialLabel,
+  badges = []
 }: UserCardProps) {
   return (
     <article className="card stack user-card">
@@ -33,8 +37,19 @@ export function UserCard({
         <span className="pill">{comparison ? "Taste overlap" : "Public profile"}</span>
         <span className="pill">{profile.followers} followers</span>
         <span className="pill">{profile.following} following</span>
+        {socialLabel ? <span className="pill">{socialLabel}</span> : null}
         {comparison ? <span className="pill pill-accent">{comparison.score}% match</span> : null}
       </div>
+
+      {badges.length ? (
+        <div className="tag-list">
+          {badges.map((badge) => (
+            <span className="tag" key={badge}>
+              {badge}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className="inline-actions">
         <Link className="button button-secondary" href={`/u/${profile.username}`}>

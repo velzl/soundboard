@@ -5,12 +5,39 @@ import { SectionHeading } from "@/components/section-heading";
 import { UserCard } from "@/components/user-card";
 import { buildComparisonBreakdown } from "@/lib/compatibility";
 import { getStoredMusicStatsForSession } from "@/lib/music-stats";
+import { buildProfileBadges } from "@/lib/profile-badges";
 import { getViewerProfile } from "@/lib/profiles";
 import {
   getPublicLeaderboardEntries,
   searchPublicProfilesByUsername
 } from "@/lib/public-data";
 import { getCurrentSession } from "@/lib/session";
+import { getFollowRelationshipMapForViewer } from "@/lib/social";
+
+function getSocialProofLabel(input: {
+  isOwnProfile: boolean;
+  isFollowing?: boolean;
+  followsViewer?: boolean;
+  isMutual?: boolean;
+}) {
+  if (input.isOwnProfile) {
+    return "You";
+  }
+
+  if (input.isMutual) {
+    return "Mutual follow";
+  }
+
+  if (input.followsViewer) {
+    return "Follows you";
+  }
+
+  if (input.isFollowing) {
+    return "Already following";
+  }
+
+  return undefined;
+}
 
 export default async function DiscoverPage({
   searchParams
@@ -29,6 +56,13 @@ export default async function DiscoverPage({
 
   const viewerStats =
     viewerProfile?.onboardingComplete ? storedMusicStats?.stats ?? null : null;
+  const relationshipMap =
+    session && viewerProfile?.onboardingComplete
+      ? await getFollowRelationshipMapForViewer(session.spotifyUserId, [
+          ...searchResults.map((result) => result.profile.id),
+          ...featuredEntries.map((entry) => entry.profile.id)
+        ])
+      : new Map();
   const personalizedResults = searchResults.map((result) => {
     const comparison =
       viewerStats &&
@@ -36,12 +70,36 @@ export default async function DiscoverPage({
       (!viewerProfile || result.profile.username !== viewerProfile.username)
         ? buildComparisonBreakdown(viewerStats, result.stats)
         : undefined;
+    const relationship = relationshipMap.get(result.profile.id);
+    const socialLabel = getSocialProofLabel({
+      isOwnProfile: result.profile.username === viewerProfile?.username,
+      isFollowing: relationship?.isFollowing,
+      followsViewer: relationship?.followsViewer,
+      isMutual: relationship?.isMutual
+    });
 
     return {
       ...result,
-      comparison
+      comparison,
+      socialLabel,
+      badges: buildProfileBadges(result.profile, result.stats, result.score)
     };
   });
+  const featuredSocialLabels = Object.fromEntries(
+    featuredEntries
+      .map((entry) => {
+        const relationship = relationshipMap.get(entry.profile.id);
+        const socialLabel = getSocialProofLabel({
+          isOwnProfile: entry.profile.username === viewerProfile?.username,
+          isFollowing: relationship?.isFollowing,
+          followsViewer: relationship?.followsViewer,
+          isMutual: relationship?.isMutual
+        });
+
+        return socialLabel ? [entry.profile.id, socialLabel] : null;
+      })
+      .filter((entry): entry is [string, string] => Boolean(entry))
+  );
 
   return (
     <main className="page">
@@ -55,6 +113,7 @@ export default async function DiscoverPage({
           <span className="pill pill-accent">Public handle search</span>
           <span className="pill">Compare from results</span>
           <span className="pill">Featured listeners below</span>
+          {session ? <span className="pill">Relationship proof enabled</span> : null}
         </div>
         <form action="/discover" className="search-form">
           <label className="search-shell" htmlFor="discover-search">
@@ -96,6 +155,8 @@ export default async function DiscoverPage({
                   key={result.profile.id}
                   profile={result.profile}
                   comparison={result.comparison}
+                  socialLabel={result.socialLabel}
+                  badges={result.badges}
                   actionHref={
                     result.profile.username === viewerProfile?.username
                       ? `/u/${result.profile.username}`
@@ -128,10 +189,10 @@ export default async function DiscoverPage({
         <SectionHeading
           eyebrow="Featured listeners"
           title="Profiles already shaping the public board"
-          description="Even without a search query, discovery should still feel alive."
+          description="Even without a search query, discovery should still feel alive and socially legible."
         />
         {featuredEntries.length ? (
-          <LeaderboardList entries={featuredEntries} />
+          <LeaderboardList entries={featuredEntries} socialLabels={featuredSocialLabels} />
         ) : (
           <article className="card stack">
             <h3>No featured listeners yet</h3>

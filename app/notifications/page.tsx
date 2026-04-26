@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import { markNotificationsRead } from "@/app/notification-actions";
+import { FollowToggle } from "@/components/follow-toggle";
 import { SectionHeading } from "@/components/section-heading";
 import { getNotificationsForSession, getUnreadNotificationCountForSession } from "@/lib/notifications";
 import { getViewerProfile } from "@/lib/profiles";
 import { getCurrentSession } from "@/lib/session";
+import { getFollowRelationshipMapForViewer } from "@/lib/social";
 import { toUserFacingErrorMessage } from "@/lib/ui-errors";
 
 function formatNotificationDate(createdAt: string) {
@@ -53,6 +55,10 @@ export default async function NotificationsPage({
     getNotificationsForSession(session),
     getUnreadNotificationCountForSession(session)
   ]);
+  const relationshipMap = await getFollowRelationshipMapForViewer(
+    session.spotifyUserId,
+    notifications.map((notification) => notification.actorSpotifyUserId)
+  );
 
   return (
     <main className="page">
@@ -111,51 +117,73 @@ export default async function NotificationsPage({
         />
         {notifications.length ? (
           <div className="list-grid">
-            {notifications.map((notification) => (
-              <article
-                key={notification.id}
-                className={`card stack notification-card${notification.readAt ? "" : " notification-card-unread"}`}
-              >
-                <div className="meta-row notification-header">
-                  <div className="meta-row">
-                    <span className="avatar" aria-hidden="true">
-                      {notification.actorAvatarSeed}
-                    </span>
-                    <div className="stack notification-copy">
-                      <strong>
-                        {notification.actorUsername
-                          ? `@${notification.actorUsername}`
-                          : notification.actorDisplayName}{" "}
-                        followed you
-                      </strong>
-                      <span className="note">
-                        {notification.actorUsername
-                          ? `${notification.actorDisplayName} found your profile and added you to their listening circle.`
-                          : "A listener followed your profile and added you to their listening circle."}
-                      </span>
+            {notifications.map((notification) => {
+                const relationship = relationshipMap.get(notification.actorSpotifyUserId);
+
+                return (
+                  <article
+                    key={notification.id}
+                    className={`card stack notification-card${notification.readAt ? "" : " notification-card-unread"}`}
+                  >
+                    <div className="meta-row notification-header">
+                      <div className="meta-row">
+                        <span className="avatar" aria-hidden="true">
+                          {notification.actorAvatarSeed}
+                        </span>
+                        <div className="stack notification-copy">
+                          <strong>
+                            {notification.actorUsername
+                              ? `@${notification.actorUsername}`
+                              : notification.actorDisplayName}{" "}
+                            followed you
+                          </strong>
+                          <span className="note">
+                            {notification.actorUsername
+                              ? `${notification.actorDisplayName} found your profile and added you to their listening circle.`
+                              : "A listener followed your profile and added you to their listening circle."}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="stack notification-meta">
+                        <span className="metric-label">{formatNotificationDate(notification.createdAt)}</span>
+                        <span className={`pill${notification.readAt ? "" : " pill-accent"}`}>
+                          {notification.readAt ? "Read" : "Unread"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="stack notification-meta">
-                    <span className="metric-label">{formatNotificationDate(notification.createdAt)}</span>
-                    <span className={`pill${notification.readAt ? "" : " pill-accent"}`}>
-                      {notification.readAt ? "Read" : "Unread"}
-                    </span>
-                  </div>
-                </div>
-                <div className="inline-actions">
-                  {notification.actorUsername ? (
-                    <>
-                      <Link className="button button-secondary" href={`/u/${notification.actorUsername}`}>
-                        View profile
-                      </Link>
-                      <Link className="button button-secondary" href={`/compare/${notification.actorUsername}`}>
-                        Compare taste
-                      </Link>
-                    </>
-                  ) : null}
-                </div>
-              </article>
-            ))}
+                    <div className="pill-row">
+                      {relationship?.isMutual ? (
+                        <span className="pill pill-accent">Mutual follow</span>
+                      ) : relationship?.isFollowing ? (
+                        <span className="pill">Following back</span>
+                      ) : (
+                        <span className="pill">Follow back available</span>
+                      )}
+                      <span className="pill">System-generated alert</span>
+                    </div>
+                    <div className="inline-actions">
+                      {notification.actorUsername ? (
+                        <>
+                          <Link className="button button-secondary" href={`/u/${notification.actorUsername}`}>
+                            View profile
+                          </Link>
+                          <Link className="button button-secondary" href={`/compare/${notification.actorUsername}`}>
+                            Compare taste
+                          </Link>
+                          {!relationship?.isFollowing ? (
+                            <FollowToggle
+                              username={notification.actorUsername}
+                              redirectPath="/notifications"
+                              isFollowing={false}
+                              followLabel={`Follow back @${notification.actorUsername}`}
+                            />
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
           </div>
         ) : (
           <article className="card stack">

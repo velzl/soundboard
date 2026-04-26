@@ -2,7 +2,7 @@
 
 > Turn Spotify listening into a social identity.
 
-Soundboard is a social music identity app built around Spotify. It turns listening habits into public profiles, compatibility scores, follow relationships, notifications, and competitive leaderboards.
+Soundboard is a social music identity app built around Spotify. It turns listening habits into public profiles, compatibility scores, follow relationships, activity feeds, notifications, and competitive leaderboards.
 
 Instead of treating music data like a private analytics dashboard, Soundboard treats it like something social: a way to compare taste, discover people with similar listening habits, and build a profile that actually feels alive.
 
@@ -14,6 +14,10 @@ Instead of treating music data like a private analytics dashboard, Soundboard tr
 - profile comparison using artist and genre overlap
 - follow system and following-only leaderboard
 - in-app notifications for new follows
+- system-generated public and circle activity feeds
+- mutual-follow social cues and follow-back flows
+- lightweight profile badges and pinned identity markers
+- graph-aware follow suggestions that combine taste overlap with circle signals
 - search and discover flow for public profiles
 - weekly recap logic based on synced listening history
 
@@ -36,9 +40,9 @@ This repository contains a working MVP-oriented build with:
 - Next.js App Router
 - Supabase-backed persistence for auth-linked app data
 - Spotify OAuth and top-item sync
-- public profile, leaderboard, compare, discover, and notifications flows
+- public profile, leaderboard, activity, compare, discover, and notifications flows
 - stronger username sanitization and reserved-handle protection
-- browser security headers and safer user-facing error handling
+- browser security headers, safer user-facing error handling, and intentionally narrow social surfaces
 
 The app is functional, but still clearly in MVP territory.
 

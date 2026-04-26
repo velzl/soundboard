@@ -160,3 +160,51 @@ export async function getRecentMusicSyncHistoryForSpotifyUserId(
 
   return getPersistedRecentMusicSyncHistoryForSpotifyUserId(spotifyUserId, limit);
 }
+
+export async function getRecentMusicSyncHistoryEntries(
+  limit = 12,
+  spotifyUserIds?: string[]
+) {
+  const ids = spotifyUserIds ? [...new Set(spotifyUserIds.filter(Boolean))] : [];
+
+  if (!supabaseServerConfigIsReady()) {
+    const entries = [...musicSyncHistoryStore.values()]
+      .flat()
+      .filter((entry) => !ids.length || ids.includes(entry.spotifyUserId))
+      .sort((left, right) => right.syncedAt.localeCompare(left.syncedAt));
+
+    return entries.slice(0, limit);
+  }
+
+  const supabase = createSupabaseAdminClient();
+  let query = supabase
+    .from(MUSIC_SYNC_HISTORY_TABLE)
+    .select(
+      "spotify_user_id, music_activity_score, top_artist_name, top_track_name, top_genres_json, synced_at, created_at"
+    )
+    .order("synced_at", { ascending: false })
+    .limit(limit);
+
+  if (ids.length) {
+    query = query.in("spotify_user_id", ids);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    if (isMissingHistoryTableError(error.message)) {
+      const fallbackEntries = [...musicSyncHistoryStore.values()]
+        .flat()
+        .filter((entry) => !ids.length || ids.includes(entry.spotifyUserId))
+        .sort((left, right) => right.syncedAt.localeCompare(left.syncedAt));
+
+      return fallbackEntries.slice(0, limit);
+    }
+
+    throw new Error(`Failed to load music sync history feed: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) =>
+    mapRowToMusicSyncHistoryEntry(row as PersistedMusicSyncHistoryRow)
+  );
+}

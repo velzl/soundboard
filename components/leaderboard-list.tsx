@@ -4,9 +4,10 @@ import type { LeaderboardEntry } from "@/types";
 
 type LeaderboardListProps = {
   entries: LeaderboardEntry[];
+  socialLabels?: Record<string, string>;
 };
 
-export function LeaderboardList({ entries }: LeaderboardListProps) {
+export function LeaderboardList({ entries, socialLabels = {} }: LeaderboardListProps) {
   return (
     <div className="leaderboard-list">
       {entries.map((entry) => (
@@ -22,6 +23,9 @@ export function LeaderboardList({ entries }: LeaderboardListProps) {
               <div className="pill-row leaderboard-subline">
                 <span className="muted">@{entry.profile.username}</span>
                 <span className="pill">{entry.topGenre}</span>
+                {socialLabels[entry.profile.id] ? (
+                  <span className="pill">{socialLabels[entry.profile.id]}</span>
+                ) : null}
               </div>
             </div>
           </div>
