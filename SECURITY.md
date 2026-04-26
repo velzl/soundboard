@@ -29,6 +29,7 @@ This project currently includes:
 - safer user-facing error messages that avoid exposing raw backend details
 - system-generated social activity and follow notifications instead of open public posting
 - a social design that avoids direct messaging, public comments, and arbitrary user-to-user HTML content in MVP
+- bounded pin-to-circle state so personal watchlists stay small and easier to reason about
 
 ## Social feature privacy note
 

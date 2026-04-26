@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import type { ComparisonBreakdown, Profile } from "@/types";
 
@@ -9,6 +10,7 @@ type UserCardProps = {
   actionLabel?: string;
   socialLabel?: string;
   badges?: string[];
+  extraAction?: ReactNode;
 };
 
 export function UserCard({
@@ -17,7 +19,8 @@ export function UserCard({
   actionHref,
   actionLabel = "Compare",
   socialLabel,
-  badges = []
+  badges = [],
+  extraAction
 }: UserCardProps) {
   return (
     <article className="card stack user-card">
@@ -60,6 +63,7 @@ export function UserCard({
             {actionLabel}
           </Link>
         ) : null}
+        {extraAction}
       </div>
     </article>
   );

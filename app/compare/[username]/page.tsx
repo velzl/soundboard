@@ -2,11 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CompareBreakdown } from "@/components/compare-breakdown";
+import { CompareHistoryPanel } from "@/components/compare-history-panel";
+import { buildCompareHistoryView } from "@/lib/compare-history";
 import { buildComparisonBreakdown } from "@/lib/compatibility";
 import { getStoredMusicStatsForSession } from "@/lib/music-stats";
 import { buildAvatarSeed, getViewerProfile } from "@/lib/profiles";
 import { getPublicProfileSnapshotByUsername } from "@/lib/public-data";
 import { getCurrentSession } from "@/lib/session";
+import { calculateMusicActivityScore } from "@/lib/scoring";
+import { getRecentMusicSyncHistoryForSpotifyUserId } from "@/lib/sync-history";
 import type { Profile } from "@/types";
 
 function toViewerComparisonProfile(viewerProfile: NonNullable<Awaited<ReturnType<typeof getViewerProfile>>>): Profile {
@@ -22,11 +26,14 @@ function toViewerComparisonProfile(viewerProfile: NonNullable<Awaited<ReturnType
 }
 
 export default async function ComparePage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ username: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { username } = await params;
+  const { view } = await searchParams;
   const session = await getCurrentSession();
   const viewerProfile = await getViewerProfile(session);
   const viewerStoredStats = session ? await getStoredMusicStatsForSession(session) : null;
@@ -170,6 +177,24 @@ export default async function ComparePage({
   }
 
   const comparison = buildComparisonBreakdown(currentStats, publicSnapshot.stats);
+  const currentView = view === "history" ? "history" : "current";
+  const viewerCurrentScore = viewerStoredStats?.score ?? calculateMusicActivityScore(currentStats);
+  const targetCurrentScore =
+    publicSnapshot.score ?? calculateMusicActivityScore(publicSnapshot.stats);
+  const [viewerHistory, targetHistory] = await Promise.all([
+    getRecentMusicSyncHistoryForSpotifyUserId(currentProfile.id, 2),
+    getRecentMusicSyncHistoryForSpotifyUserId(publicSnapshot.profile.id, 2)
+  ]);
+  const historyView = buildCompareHistoryView({
+    viewerDisplayName: currentProfile.displayName,
+    targetDisplayName: publicSnapshot.profile.displayName,
+    viewerCurrentStats: currentStats,
+    viewerCurrentScore,
+    viewerPreviousSync: viewerHistory[1] ?? null,
+    targetCurrentStats: publicSnapshot.stats,
+    targetCurrentScore,
+    targetPreviousSync: targetHistory[1] ?? null
+  });
 
   return (
     <main className="page">
@@ -181,6 +206,20 @@ export default async function ComparePage({
         <p className="lede">
           Comparison now runs on persisted artist and genre overlap, so this view leads with what genuinely lines up before showing where each profile pulls away.
         </p>
+        <div className="inline-actions compare-view-switcher">
+          <Link
+            className={`button ${currentView === "current" ? "button-primary" : "button-secondary"}`}
+            href={`/compare/${publicSnapshot.profile.username}`}
+          >
+            Current match
+          </Link>
+          <Link
+            className={`button ${currentView === "history" ? "button-primary" : "button-secondary"}`}
+            href={`/compare/${publicSnapshot.profile.username}?view=history`}
+          >
+            History view
+          </Link>
+        </div>
       </section>
 
       <section className="grid grid-2">
@@ -197,7 +236,11 @@ export default async function ComparePage({
         </article>
       </section>
 
-      <CompareBreakdown comparison={comparison} />
+      {currentView === "history" ? (
+        <CompareHistoryPanel historyView={historyView} />
+      ) : (
+        <CompareBreakdown comparison={comparison} />
+      )}
 
       <div className="inline-actions">
         <Link className="button button-secondary" href={`/u/${publicSnapshot.profile.username}`}>

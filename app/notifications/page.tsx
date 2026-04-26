@@ -2,8 +2,10 @@ import Link from "next/link";
 
 import { markNotificationsRead } from "@/app/notification-actions";
 import { FollowToggle } from "@/components/follow-toggle";
+import { PinToggle } from "@/components/pin-toggle";
 import { SectionHeading } from "@/components/section-heading";
 import { getNotificationsForSession, getUnreadNotificationCountForSession } from "@/lib/notifications";
+import { getPinnedRelationshipMapForViewer } from "@/lib/pins";
 import { getViewerProfile } from "@/lib/profiles";
 import { getCurrentSession } from "@/lib/session";
 import { getFollowRelationshipMapForViewer } from "@/lib/social";
@@ -21,12 +23,24 @@ function formatNotificationDate(createdAt: string) {
 export default async function NotificationsPage({
   searchParams
 }: {
-  searchParams: Promise<{ notifications_read?: string; notification_error?: string }>;
+  searchParams: Promise<{
+    notifications_read?: string;
+    notification_error?: string;
+    pinned?: string;
+    unpinned?: string;
+    pin_error?: string;
+  }>;
 }) {
-  const { notifications_read: notificationsRead, notification_error: notificationError } =
-    await searchParams;
+  const {
+    notifications_read: notificationsRead,
+    notification_error: notificationError,
+    pinned,
+    unpinned,
+    pin_error: pinError
+  } = await searchParams;
   const session = await getCurrentSession();
   const friendlyNotificationError = toUserFacingErrorMessage(notificationError);
+  const friendlyPinError = toUserFacingErrorMessage(pinError);
 
   if (!session) {
     return (
@@ -59,6 +73,10 @@ export default async function NotificationsPage({
     session.spotifyUserId,
     notifications.map((notification) => notification.actorSpotifyUserId)
   );
+  const pinnedMap = await getPinnedRelationshipMapForViewer(
+    session.spotifyUserId,
+    notifications.map((notification) => notification.actorSpotifyUserId)
+  );
 
   return (
     <main className="page">
@@ -74,6 +92,28 @@ export default async function NotificationsPage({
           <span className="eyebrow">Notifications</span>
           <strong>We could not update your notification state.</strong>
           <span className="note">{friendlyNotificationError}</span>
+        </section>
+      ) : null}
+
+      {pinned ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>The profile is now pinned in your circle.</strong>
+        </section>
+      ) : null}
+
+      {unpinned ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>The profile was removed from your pinned circle.</strong>
+        </section>
+      ) : null}
+
+      {friendlyPinError ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>That pin action did not complete.</strong>
+          <span className="note">{friendlyPinError}</span>
         </section>
       ) : null}
 
@@ -152,6 +192,9 @@ export default async function NotificationsPage({
                       </div>
                     </div>
                     <div className="pill-row">
+                      {pinnedMap.get(notification.actorSpotifyUserId) ? (
+                        <span className="pill pill-accent">Pinned in your circle</span>
+                      ) : null}
                       {relationship?.isMutual ? (
                         <span className="pill pill-accent">Mutual follow</span>
                       ) : relationship?.isFollowing ? (
@@ -176,6 +219,12 @@ export default async function NotificationsPage({
                               redirectPath="/notifications"
                               isFollowing={false}
                               followLabel={`Follow back @${notification.actorUsername}`}
+                            />
+                          ) : notification.actorUsername ? (
+                            <PinToggle
+                              username={notification.actorUsername}
+                              redirectPath="/notifications"
+                              isPinned={pinnedMap.get(notification.actorSpotifyUserId) ?? false}
                             />
                           ) : null}
                         </>

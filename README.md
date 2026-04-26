@@ -18,6 +18,7 @@ Instead of treating music data like a private analytics dashboard, Soundboard tr
 - mutual-follow social cues and follow-back flows
 - lightweight profile badges and pinned identity markers
 - graph-aware follow suggestions that combine taste overlap with circle signals
+- compare history view built from saved sync snapshots
 - search and discover flow for public profiles
 - weekly recap logic based on synced listening history
 
@@ -43,6 +44,7 @@ This repository contains a working MVP-oriented build with:
 - public profile, leaderboard, activity, compare, discover, and notifications flows
 - stronger username sanitization and reserved-handle protection
 - browser security headers, safer user-facing error handling, and intentionally narrow social surfaces
+- pin-to-circle controls with a bounded watchlist model instead of an open-ended social dump
 
 The app is functional, but still clearly in MVP territory.
 
@@ -92,6 +94,7 @@ Apply the SQL from:
 - `supabase/migrations/20260414_create_follows_table.sql`
 - `supabase/migrations/20260414_create_music_sync_history_table.sql`
 - `supabase/migrations/20260414_create_notifications_table.sql`
+- `supabase/migrations/20260426_create_pinned_profiles_table.sql`
 
 ### 4. Start the app
 

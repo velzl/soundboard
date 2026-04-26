@@ -1,10 +1,13 @@
 import Link from "next/link";
 
+import { PinToggle } from "@/components/pin-toggle";
 import { LeaderboardList } from "@/components/leaderboard-list";
 import { SectionHeading } from "@/components/section-heading";
 import { UserCard } from "@/components/user-card";
 import { buildComparisonBreakdown } from "@/lib/compatibility";
+import { buildProfileBadges } from "@/lib/profile-badges";
 import { getStoredMusicStatsForSession } from "@/lib/music-stats";
+import { getPinnedEntriesForSession, getPinnedRelationshipMapForViewer } from "@/lib/pins";
 import {
   getFollowingLeaderboardEntriesForSession,
   getPublicProfileSnapshotBySpotifyUserId
@@ -15,9 +18,16 @@ import {
   getFollowRelationshipMapForViewer,
   getFollowingSpotifyUserIdsForSession
 } from "@/lib/social";
+import { toUserFacingErrorMessage } from "@/lib/ui-errors";
 
-export default async function FollowingPage() {
+export default async function FollowingPage({
+  searchParams
+}: {
+  searchParams: Promise<{ pinned?: string; unpinned?: string; pin_error?: string }>;
+}) {
+  const { pinned, unpinned, pin_error: pinError } = await searchParams;
   const session = await getCurrentSession();
+  const friendlyPinError = toUserFacingErrorMessage(pinError);
   const viewerProfile = await getViewerProfile(session);
   const needsProfileSetup = Boolean(session && !viewerProfile?.onboardingComplete);
   const viewerStats =
@@ -27,9 +37,15 @@ export default async function FollowingPage() {
   const needsViewerSync = Boolean(session && viewerProfile?.onboardingComplete && !viewerStats);
   const followingLeaderboard = await getFollowingLeaderboardEntriesForSession(session);
   const followingIds = session ? await getFollowingSpotifyUserIdsForSession(session) : [];
+  const pinnedEntries = session ? await getPinnedEntriesForSession(session) : [];
+  const pinnedIds = pinnedEntries.map((entry) => entry.pinnedSpotifyUserId);
   const relationshipMap =
     session && followingIds.length
       ? await getFollowRelationshipMapForViewer(session.spotifyUserId, followingIds)
+      : new Map();
+  const pinnedMap =
+    session && followingIds.length
+      ? await getPinnedRelationshipMapForViewer(session.spotifyUserId, followingIds)
       : new Map();
   const followingSnapshots = await Promise.all(
     followingIds.map((spotifyUserId) => getPublicProfileSnapshotBySpotifyUserId(spotifyUserId))
@@ -37,6 +53,11 @@ export default async function FollowingPage() {
   const following = followingSnapshots.filter(
     (snapshot): snapshot is NonNullable<typeof snapshot> => Boolean(snapshot)
   );
+  const pinnedSnapshots = pinnedIds
+    .map((pinnedSpotifyUserId) =>
+      following.find((snapshot) => snapshot.profile.id === pinnedSpotifyUserId) ?? null
+    )
+    .filter((snapshot): snapshot is NonNullable<typeof snapshot> => Boolean(snapshot));
   const unsyncedFollowCount = following.filter((snapshot) => !snapshot.stats).length;
   const mutualCount = following.filter((snapshot) =>
     relationshipMap.get(snapshot.profile.id)?.isMutual
@@ -44,6 +65,28 @@ export default async function FollowingPage() {
 
   return (
     <main className="page">
+      {pinned ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>Your pinned circle was updated.</strong>
+        </section>
+      ) : null}
+
+      {unpinned ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>A profile was removed from your pinned circle.</strong>
+        </section>
+      ) : null}
+
+      {friendlyPinError ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>That pin action did not complete.</strong>
+          <span className="note">{friendlyPinError}</span>
+        </section>
+      ) : null}
+
       <section className="hero">
         <span className="hero-kicker">Following</span>
         <h1>Your personal music circle should feel easy to revisit.</h1>
@@ -52,6 +95,7 @@ export default async function FollowingPage() {
         </p>
         <div className="pill-row">
           <span className="pill">{following.length} in your circle</span>
+          <span className="pill">{pinnedSnapshots.length} pinned</span>
           <span className="pill">{mutualCount} mutual {mutualCount === 1 ? "follow" : "follows"}</span>
           <span className="pill pill-accent">Safer system-social design</span>
         </div>
@@ -90,6 +134,61 @@ export default async function FollowingPage() {
           </span>
         </section>
       ) : null}
+
+      <section className="stack">
+        <SectionHeading
+          eyebrow="Pinned"
+          title="Profiles you want to keep close"
+          description="Pinning is intentionally capped and tied to followed profiles so it behaves more like a trusted shortlist than an unbounded watchlist."
+        />
+
+        {pinnedSnapshots.length ? (
+          <div className="grid grid-2">
+            {pinnedSnapshots.map((snapshot) => {
+              const relationship = relationshipMap.get(snapshot.profile.id);
+              const isPinned = pinnedMap.get(snapshot.profile.id) ?? false;
+              const socialTokens = [
+                isPinned ? "Pinned" : null,
+                relationship?.isMutual
+                  ? "Mutual follow"
+                  : relationship?.followsViewer
+                    ? "Follows you"
+                    : "You follow this profile"
+              ].filter(Boolean);
+
+              return (
+                <UserCard
+                  key={`pinned-${snapshot.profile.id}`}
+                  profile={snapshot.profile}
+                  comparison={
+                    viewerStats && snapshot.stats
+                      ? buildComparisonBreakdown(viewerStats, snapshot.stats)
+                      : undefined
+                  }
+                  actionHref={`/compare/${snapshot.profile.username}`}
+                  actionLabel={viewerStats && snapshot.stats ? "Compare" : "View sync status"}
+                  socialLabel={socialTokens.join(" | ")}
+                  badges={buildProfileBadges(snapshot.profile, snapshot.stats, snapshot.score)}
+                  extraAction={
+                    <PinToggle
+                      username={snapshot.profile.username}
+                      redirectPath="/following"
+                      isPinned={isPinned}
+                    />
+                  }
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <article className="card stack">
+            <h3>No pinned profiles yet</h3>
+            <p className="note">
+              Follow someone first, then pin them from their profile or from your circle to keep them near the top of your social loop.
+            </p>
+          </article>
+        )}
+      </section>
 
       <section className="stack">
         <SectionHeading
@@ -136,11 +235,24 @@ export default async function FollowingPage() {
                       viewerStats && snapshot.stats ? "Compare" : "View sync status"
                     }
                     socialLabel={
-                      relationship?.isMutual
-                        ? "Mutual follow"
-                        : relationship?.followsViewer
-                          ? "Follows you"
-                          : "You follow this profile"
+                      [
+                        pinnedMap.get(snapshot.profile.id) ? "Pinned" : null,
+                        relationship?.isMutual
+                          ? "Mutual follow"
+                          : relationship?.followsViewer
+                            ? "Follows you"
+                            : "You follow this profile"
+                      ]
+                        .filter(Boolean)
+                        .join(" | ")
+                    }
+                    badges={buildProfileBadges(snapshot.profile, snapshot.stats, snapshot.score)}
+                    extraAction={
+                      <PinToggle
+                        username={snapshot.profile.username}
+                        redirectPath="/following"
+                        isPinned={pinnedMap.get(snapshot.profile.id) ?? false}
+                      />
                     }
                   />
                 );

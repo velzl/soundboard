@@ -24,6 +24,9 @@
 - profile and following views now expose mutual-follow state instead of feeling one-directional only
 - discover results now show social-proof labels and system-generated profile badges
 - dashboard suggestions now blend taste overlap with circle-graph signals instead of using taste alone
+- followed profiles can now be pinned into a bounded personal shortlist
+- compare pages now include a history view based on saved sync snapshots
+- mobile layout hierarchy is stronger across the header, actions, and compare flow
 - signed-in dashboard/profile views now stop showing seeded personal placeholders when real sync/setup is still missing
 - compare and landing-page discovery now lean more heavily on real public/persisted data instead of demo stand-ins
 - following and settings now use clearer sync/setup language, with no seeded comparison fallback left in the social circle view

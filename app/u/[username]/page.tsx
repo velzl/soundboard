@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { buildComparisonBreakdown } from "@/lib/compatibility";
 import { FollowToggle } from "@/components/follow-toggle";
+import { PinToggle } from "@/components/pin-toggle";
 import {
   buildPinnedIdentityMarkers,
   buildProfileBadgeDetails,
@@ -12,6 +13,7 @@ import { buildProfileIdentity } from "@/lib/profile-identity";
 import { SectionHeading } from "@/components/section-heading";
 import { StatCard } from "@/components/stat-card";
 import { getLeadGenre, getResolvedTopGenres, getStoredMusicStatsForSession } from "@/lib/music-stats";
+import { getPinnedRelationshipMapForViewer } from "@/lib/pins";
 import { getPublicProfileSnapshotByUsername } from "@/lib/public-data";
 import { getViewerProfile } from "@/lib/profiles";
 import { getCurrentSession } from "@/lib/session";
@@ -23,11 +25,26 @@ export default async function ProfilePage({
   searchParams
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ followed?: string; unfollowed?: string; social_error?: string }>;
+  searchParams: Promise<{
+    followed?: string;
+    unfollowed?: string;
+    social_error?: string;
+    pinned?: string;
+    unpinned?: string;
+    pin_error?: string;
+  }>;
 }) {
   const { username } = await params;
-  const { followed, unfollowed, social_error: socialError } = await searchParams;
+  const {
+    followed,
+    unfollowed,
+    social_error: socialError,
+    pinned,
+    unpinned,
+    pin_error: pinError
+  } = await searchParams;
   const friendlySocialError = toUserFacingErrorMessage(socialError);
+  const friendlyPinError = toUserFacingErrorMessage(pinError);
   const [snapshot, session] = await Promise.all([
     getPublicProfileSnapshotByUsername(username),
     getCurrentSession()
@@ -59,6 +76,12 @@ export default async function ProfilePage({
         }
       : null;
   const isFollowing = relationship?.isFollowing ?? false;
+  const isPinned =
+    canFollow && session
+      ? (await getPinnedRelationshipMapForViewer(session.spotifyUserId, [snapshot.profile.id])).get(
+          snapshot.profile.id
+        ) ?? false
+      : false;
   const comparison =
     viewerStats && snapshot.stats && !isOwnProfile
       ? buildComparisonBreakdown(viewerStats, snapshot.stats)
@@ -136,6 +159,28 @@ export default async function ProfilePage({
         </section>
       ) : null}
 
+      {pinned ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>@{snapshot.profile.username} is now pinned in your circle.</strong>
+        </section>
+      ) : null}
+
+      {unpinned ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>@{snapshot.profile.username} is no longer pinned in your circle.</strong>
+        </section>
+      ) : null}
+
+      {friendlyPinError ? (
+        <section className="panel stack">
+          <span className="eyebrow">Pin status</span>
+          <strong>That pin action did not complete.</strong>
+          <span className="note">{friendlyPinError}</span>
+        </section>
+      ) : null}
+
       <section className="hero profile-hero">
         <div className="profile-hero-copy stack">
           <span className="hero-kicker">Public profile</span>
@@ -166,6 +211,7 @@ export default async function ProfilePage({
                 Synced {new Date(snapshot.stats.updatedAt).toLocaleDateString()}
               </span>
             ) : null}
+            {isPinned ? <span className="pill pill-accent">Pinned in your circle</span> : null}
           </div>
         </div>
 
@@ -323,6 +369,13 @@ export default async function ProfilePage({
                       ? `Follow back @${snapshot.profile.username}`
                       : undefined
                   }
+                />
+              ) : null}
+              {canFollow && isFollowing ? (
+                <PinToggle
+                  username={snapshot.profile.username}
+                  redirectPath={`/u/${snapshot.profile.username}`}
+                  isPinned={isPinned}
                 />
               ) : null}
             </div>

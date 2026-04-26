@@ -31,11 +31,13 @@ export async function SiteHeader() {
       </Link>
 
       <nav className="nav" aria-label="Primary">
-        {links.map((link) => (
-          <Link key={link.href} className="nav-link" href={link.href}>
-            {link.label}
-          </Link>
-        ))}
+        <div className="nav-links">
+          {links.map((link) => (
+            <Link key={link.href} className="nav-link" href={link.href}>
+              {link.label}
+            </Link>
+          ))}
+        </div>
         <div className="nav-utility">
           {session ? (
             <Link

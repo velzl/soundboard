@@ -129,6 +129,13 @@ textarea {
   gap: 0.75rem;
 }
 
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
 .nav-utility {
   display: flex;
   flex-wrap: wrap;
@@ -172,6 +179,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
+  flex-wrap: nowrap;
   padding: 0.3rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
@@ -322,6 +330,10 @@ textarea {
 
 .activity-filter-row {
   align-items: center;
+}
+
+.compare-view-switcher {
+  margin-top: 1rem;
 }
 
 .badge-explainer {
@@ -594,6 +606,19 @@ textarea {
   gap: 1rem;
 }
 
+.history-grid,
+.history-card {
+  align-items: stretch;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .activity-card {
   gap: 1rem;
 }
@@ -719,7 +744,30 @@ textarea {
   }
 
   .nav {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
     justify-content: flex-start;
+  }
+
+  .nav-links {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    scrollbar-width: none;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-link {
+    white-space: nowrap;
+  }
+
+  .nav-utility {
+    width: 100%;
   }
 
   .notification-header {
@@ -737,10 +785,76 @@ textarea {
     width: min(100% - 1rem, 1200px);
   }
 
+  .site-header {
+    top: 0.5rem;
+    padding: 0.9rem;
+  }
+
   .hero,
   .card,
   .panel {
     padding: 1.15rem;
     border-radius: 1.3rem;
+  }
+
+  .brand-copy {
+    gap: 0.2rem;
+  }
+
+  .brand-label {
+    font-size: 0.72rem;
+  }
+
+  .header-search-form,
+  .search-form,
+  .hero-actions,
+  .inline-actions,
+  .activity-filter-row {
+    width: 100%;
+  }
+
+  .header-search-form,
+  .search-form,
+  .hero-actions,
+  .inline-actions,
+  .activity-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-form > *,
+  .hero-actions > *,
+  .inline-actions > * {
+    width: 100%;
+  }
+
+  .search-form form,
+  .hero-actions form,
+  .inline-actions form {
+    width: 100%;
+  }
+
+  .search-form .button,
+  .hero-actions .button,
+  .inline-actions .button {
+    width: 100%;
+  }
+
+  .nav-utility .pill {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .header-search-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .history-row {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboard-row {
+    padding: 0.95rem;
   }
 }
